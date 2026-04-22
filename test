@@ -1,0 +1,41 @@
+# Connexion Microsoft Graph
+Connect-MgGraph -Scopes "TeamworkTag.ReadWrite.All","Group.ReadWrite.All","User.Read.All"
+
+# ID de l'équipe Teams (IMPORTANT)
+$teamId = "<YOUR_TEAM_ID>"
+
+# Import CSV
+$inputFile = "C:\temp\tags.csv"
+$data = Import-Csv -Path $inputFile
+
+foreach ($row in $data) {
+
+    $userEmail = $row.username
+    $tagName   = $row.tagname
+
+    # 1. Récupérer user
+    $user = Get-MgUser -Filter "userPrincipalName eq '$userEmail'"
+    if (-not $user) {
+        Write-Host "User not found: $userEmail"
+        continue
+    }
+
+    # 2. Vérifier si le tag existe déjà
+    $existingTags = Get-MgTeamTag -TeamId $teamId
+    $tag = $existingTags | Where-Object { $_.DisplayName -eq $tagName }
+
+    # 3. Créer tag si inexistant
+    if (-not $tag) {
+        $tag = New-MgTeamTag -TeamId $teamId -DisplayName $tagName -Description "Auto-created tag"
+        Write-Host "Tag created: $tagName"
+    }
+
+    # 4. Ajouter membre au tag
+    try {
+        Add-MgTeamTagMember -TeamId $teamId -TeamworkTagId $tag.Id -UserId $user.Id
+        Write-Host "Added $userEmail to $tagName"
+    }
+    catch {
+        Write-Host "Error adding $userEmail to $tagName : $_"
+    }
+}
